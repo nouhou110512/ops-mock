@@ -26,6 +26,12 @@ public class ProvisioningMockController {
     @Value("${mock.pass}")
     private String mockPass;
 
+    private final NumeroRegistry numeroRegistry;
+
+    public ProvisioningMockController(NumeroRegistry numeroRegistry) {
+        this.numeroRegistry = numeroRegistry;
+    }
+
     @PostMapping("/provisioning")
     public ResponseEntity<LogAction> provisioning(@RequestBody @Valid ProvisioningInput input,
                                                   @RequestParam("login") String login,
@@ -36,7 +42,12 @@ public class ProvisioningMockController {
         }
         if (!TYPE_ACTION.equals(input.getTypeAction())) {
             return ResponseEntity.badRequest()
-                .body(new LogAction("1", "typeAction non supporte par le mock : " + input.getTypeAction(), null));
+                .body(new LogAction("1", "typeAction invalide : " + input.getTypeAction() + ". Utilisez " + TYPE_ACTION, null));
+        }
+
+        String doublon = numeroRegistry.enregistrer(input.getNumero(), input.getSim());
+        if (doublon != null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(new LogAction("1", doublon, null));
         }
 
         LinkedList<String> responses = new LinkedList<>();
