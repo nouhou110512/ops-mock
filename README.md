@@ -1,93 +1,125 @@
-# ops mock
+# ops-mock
 
+Mock du service OPS pour l'endpoint `POST /ops/provisioning` (action de création / activation d'un numéro prépayé AUC 4G).
 
+Il permet de tester les applications qui appellent OPS **sans toucher au vrai provisioning** : il contrôle la requête, rejoue la liste des étapes du vrai OPS (HLR, OCS, PCRF) et renvoie toujours un succès si la requête est valide.
 
-## Getting started
+## Prérequis
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- Java 17 ou plus
+- Maven 3.9+
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Lancer le mock
 
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://git.itn.orange-guinee.com/ops/ops-mock.git
-git branch -M main
-git push -uf origin main
+```bash
+mvn spring-boot:run
 ```
 
-## Integrate with your tools
+Le mock écoute sur **http://localhost:8089**.
 
-* [Set up project integrations](https://git.itn.orange-guinee.com/ops/ops-mock/-/settings/integrations)
+Pour construire un jar exécutable :
 
-## Collaborate with your team
+```bash
+mvn package
+java -jar target/ops-mock-0.0.1.jar
+```
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## Exemple d'appel
 
-## Test and Deploy
+```bash
+curl -X POST "http://localhost:8089/ops/provisioning?login=test&pass=test" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "requestId": "109123",
+        "typeAction": "ACTIVATION",
+        "numero": "620000001",
+        "sim": "611012050000001",
+        "profil": "prepaid",
+        "cle": "5"
+      }'
+```
 
-Use the built-in continuous integration in GitLab.
+Réponse (HTTP 200) :
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+```json
+{
+  "status": "0",
+  "message": "HLR : Success | OCS : Success | PCRF : Success",
+  "responses": [
+    "CreationImsiAUCHLRRequest : 0",
+    "CreationNumeroRequest : 0",
+    "ActivationRequest : 0",
+    "AjoutAPNRequest : 0",
+    "ApnSupInfo4G : 0",
+    "EpcBasic4GPrepaid : 0",
+    "DoubleAppel2 : 0",
+    "CREATION_NUMERO_PREPAID_OCS_REQUEST : 0",
+    "CREATION_NUMERO_PREPAID_UPFC_REQUEST : 0"
+  ],
+  "conso": null
+}
+```
 
-***
+`CreationImsiAUCHLRRequest` n'apparaît que si `cle` est différente de `"0"`.
 
-# Editing this README
+## Paramètres de la requête
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Paramètres d'URL : `login` et `pass` (par défaut `test` / `test`).
 
-## Suggestions for a good README
+| Champ | Obligatoire | Règle |
+|---|---|---|
+| `requestId` | oui | non vide |
+| `typeAction` | oui | doit valoir `ACTIVATION` |
+| `numero` | oui | exactement 9 caractères |
+| `sim` | oui | exactement 15 caractères |
+| `profil` | oui | `prepaid` ou `postpaid` (majuscules acceptées) |
+| `cle` | non | non vide ; vaut `"0"` si absente |
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Réponses d'erreur
 
-## Name
-Choose a self-explaining name for your project.
+Toutes les erreurs renvoient `"status": "1"` avec un message explicite.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+| Cas | HTTP | Message |
+|---|---|---|
+| Mauvais `login` / `pass` | 401 | `Invalid credentials` |
+| `typeAction` absent | 400 | `Le typeAction doit etre defini. Utilisez ACTIVATION` |
+| `typeAction` incorrect | 400 | `typeAction invalide : <valeur>. Utilisez ACTIVATION` |
+| `numero` absent / mauvaise longueur | 400 | `Le numero est obligatoire` / `Le numero doit contenir 9 caracteres` |
+| `sim` absente / mauvaise longueur | 400 | `La sim est obligatoire` / `La sim doit contenir 15 caracteres` |
+| `profil` absent / inconnu | 400 | `Le profil est obligatoire` / `Le profil doit etre prepaid ou postpaid` |
+| `cle` vide | 400 | `La cle ne doit pas etre vide` |
+| Numéro déjà créé | 409 | `Le numero <numero> existe deja` |
+| SIM déjà utilisée | 409 | `La sim <sim> est deja utilisee` |
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Si plusieurs champs sont invalides, les messages sont séparés par ` | `.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Numéros et SIM déjà créés
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Chaque création réussie est ajoutée au fichier **`numeros-crees.txt`** (une ligne `numero;sim`), créé dans le dossier où le mock est lancé. Le fichier est relu au démarrage : les doublons sont donc détectés même après un redémarrage.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+- Pour réutiliser un numéro ou une SIM : supprimer la ligne correspondante, puis redémarrer le mock.
+- Pour repartir de zéro : supprimer le fichier, puis redémarrer le mock.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Le fichier n'est pas versionné (il est dans `.gitignore`).
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Configuration
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Dans `src/main/resources/application.properties` :
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+| Propriété | Défaut | Rôle |
+|---|---|---|
+| `server.port` | `8089` | port d'écoute |
+| `mock.login` / `mock.pass` | `test` / `test` | identifiants acceptés |
+| `mock.numeros.file` | `numeros-crees.txt` | fichier des numéros et SIM déjà créés |
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Chaque propriété peut être surchargée au lancement, par exemple :
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+```bash
+java -jar target/ops-mock-0.0.1.jar --server.port=9090 --mock.numeros.file=/tmp/numeros.txt
+```
 
-## License
-For open source projects, say how it is licensed.
+## Tests
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```bash
+mvn test
+```

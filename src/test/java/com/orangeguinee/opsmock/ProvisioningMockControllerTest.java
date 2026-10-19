@@ -67,7 +67,7 @@ class ProvisioningMockControllerTest {
     void refuseNumeroPasDe9Caracteres() throws Exception {
         mvc.perform(post("/ops/provisioning?login=test&pass=test").contentType(MediaType.APPLICATION_JSON).content(body("62000000", "611012050000014", "5")))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("Le numero doit contenir exactement 9 chiffres"));
+            .andExpect(jsonPath("$.message").value("Le numero doit contenir 9 caracteres"));
     }
 
     @Test
@@ -75,7 +75,7 @@ class ProvisioningMockControllerTest {
         mvc.perform(post("/ops/provisioning?login=test&pass=test").contentType(MediaType.APPLICATION_JSON)
                 .content(body("620000004", "61101205000001", "5")))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("La sim doit contenir exactement 15 chiffres"));
+            .andExpect(jsonPath("$.message").value("La sim doit contenir 15 caracteres"));
     }
 
     @Test
@@ -107,21 +107,6 @@ class ProvisioningMockControllerTest {
                 .content("{\"requestId\":\"1\",\"typeAction\":\"ACTIVATION\",\"numero\":\"620000008\",\"sim\":\"611012050000001\",\"cle\":\"5\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("Le profil est obligatoire"));
-    }
-
-    @Test
-    void refuseNumeroAvecLettres() throws Exception {
-        mvc.perform(post("/ops/provisioning?login=test&pass=test").contentType(MediaType.APPLICATION_JSON).content(body("62000000a", "611012050000015", "5")))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("Le numero doit contenir exactement 9 chiffres"));
-    }
-
-    @Test
-    void refuseSimAvecLettres() throws Exception {
-        mvc.perform(post("/ops/provisioning?login=test&pass=test").contentType(MediaType.APPLICATION_JSON)
-                .content(body("620000009", "61101205000000X", "5")))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("La sim doit contenir exactement 15 chiffres"));
     }
 
     @Test
